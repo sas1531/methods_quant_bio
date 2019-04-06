@@ -1,0 +1,505 @@
+---
+title: "Methods_ggplot_lab"
+author: "Shaleigh Smith"
+date: "11/9/2018"
+output: 
+  html_document:
+    keep_md: yes
+---
+
+
+---
+
+# Shaleigh Smith
+
+
+---
+
+
+# ggplot Homework
+
+
+---
+
+
+
+---
+
+# Assignment
+With this assignment you will explore expression data stored on GEO, TCGA or anywhere you can find
+
+Part 1 (25%)
+Choose a dataset, preferably RNASeq data, but anything that can be represented in a matrix will probably be fine. Also be sure to choose a dataset with interesting and well-curated metadata (you will need this information for plotting).In a paragraph or two describe the experimental design and overall purpose of the experiment.
+
+Questions to consider...
+How many samples are there? in what groups? 
+What tissue? Diseased? Healthy?
+Multiple timepoints? Multiple samples per subject?  
+
+ 
+Part 2 (75%)
+From your chosen dataset download or obtain the data matrix (counts for RNASeq) and the associated metadata. Using the metadata generate 3 plots of any type, that convey some information about the dataset. Use ggplot2 to  generate the plots and arrange them in a single pdf object. Use the mulitplot functions from above.
+ 
+Metadata Plot Examples
+Plot distribution of ages between healthy and control samples
+Plot number of males and females with stacked bars in two experimental conditions
+Plot gene expression value for a single gene in men vs women, over time, one group vs others  
+  
+Additionally use the metadata and the count data to generate a heatmap. Include annotations, such as a colorbar to differentiate between groups or conditions. Be sure to filter genes down to a reasonable number for plotting on a heatmap. Try your best to select for genes that are interesting, ie. they distinguish between groups.
+
+
+Submit 
+1) a PDF of the 3 metadata plots and your heatmap (use facet and put all three in a single pdf)
+2) 1 paragraph describing your dataset (4-7 sentences per paragraph)
+3) R code 
+            ****Upload all three to the google drive 
+
+---
+
+
+
+---
+
+```{r Import Libraries}
+
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(matrixStats)
+library(ComplexHeatmap)
+library(circlize)
+library(TCGA2STAT)
+
+```
+
+
+---
+
+
+
+---
+
+
+```{r Get TCGA Data}
+
+# Import Mesothelioma data from TCGA
+meso <- getTCGA(disease = "MESO", data.type = "RNASeq2",
+                         clinical = T)
+
+```
+
+
+
+---
+
+```{r}
+as.tibble(meso$clinical)
+```
+
+
+---
+
+
+
+```{r Meso Clinical Data}
+
+# Isolate clinical data
+clinical <- meso$clinical
+clinical <- as.data.frame(clinical)
+
+# Change years/days to numeric 
+clinical$yearstobirth <- as.numeric(as.character(clinical$yearstobirth))
+clinical$daystodeath <- as.numeric(as.character(clinical$daystodeath))
+
+# Change the histological type level names
+levels(clinical$histologicaltype) <- c("biphasic", "epithelioid", "sarcomatoid", "malignant")
+#levels(clinical$histologicaltype)
+
+# View clinical data and histological type counts
+as.tibble(clinical)
+table(clinical$histologicaltype)
+
+```
+
+
+
+---
+
+
+```{r Bar Plots}
+
+# Visualize counts of pathology stage 
+# Color by histological type 
+
+stage <- ggplot(data = clinical) + 
+  geom_bar(mapping = aes(x = pathologicstage, fill = histologicaltype)) + 
+  scale_fill_manual(values = c("#82B446","#FFB90F", "#4682B4", "#EE0000")) +
+  ggtitle("Quantity of Histological Types: Tumor Stage") +
+  ylab("Number of Patients") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Pathological Stage") +
+  labs(fill = "Histological \nType") + 
+  theme_grey()
+
+stage_T <- ggplot(data = clinical) + 
+  geom_bar(mapping = aes(x = pathologyTstage, fill = histologicaltype)) + 
+  scale_fill_manual(values = c("#82B446","#FFB90F", "#4682B4", "#EE0000")) +
+  theme_grey()
+
+stage_N <- ggplot(data = clinical) + 
+  geom_bar(mapping = aes(x = pathologyNstage, fill = histologicaltype)) + 
+  scale_fill_manual(values = c("#82B446","#FFB90F", "#4682B4", "#EE0000")) +
+  theme_grey()
+
+stage_M <- ggplot(data = clinical) + 
+  geom_bar(mapping = aes(x = pathologyMstage, fill = histologicaltype)) + 
+  scale_fill_manual(values = c("#82B446","#FFB90F", "#4682B4", "#EE0000")) +
+  theme_grey()
+
+stage
+#stage_T
+#stage_N
+#stage_M
+
+```
+
+
+---
+
+```{r Weeks & Years to Death}
+
+# Create weeks to death and years to death columns for plotting
+
+clinical <- clinical %>% mutate(weekstodeath = (clinical$daystodeath) / 7)
+as.tibble(clinical)
+
+clinical <- clinical %>% mutate(yearstodeath = (clinical$daystodeath) / 365)
+as.tibble(clinical)
+
+# Years to death makes the most sense for plotting
+# Easiest to interpret
+
+```
+
+---
+
+
+```{r Scatter Plot}
+
+# Visualize age againt years to death
+# Color by histological type 
+
+age <- ggplot(data = clinical) + 
+  geom_point(mapping = aes(x = yearstobirth, y = yearstodeath, col = histologicaltype)) +
+  scale_color_manual(values = c("#82B446","#FFB90F", "#4682B4", "#EE0000")) +
+  ggtitle("Years to Death: Age and Histological Type") +
+  ylab("Years to Death") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Age") +
+  labs(color = "Histological \nType") +
+  theme_grey()
+
+age
+
+```
+
+
+---
+
+
+```{r Boxplot gender}
+
+# Visualize histologial type against years to death
+# Color by gender
+gender <- ggplot(data = clinical) + 
+  geom_boxplot(mapping = aes(x = histologicaltype, y = yearstodeath, color = gender)) +
+  scale_color_manual(values = c("#4682B4", "#EE0000")) +
+  theme_grey()
+
+#gender
+
+```
+
+
+---
+
+
+```{r Boxplot Radiation Therapy}
+
+# Isolate radiation therapy and remove NAs
+clinical_radiation <- dplyr::select(clinical, radiationtherapy, yearstodeath, histologicaltype)
+clinical_radiation <- clinical_radiation[!is.na(clinical_radiation$radiationtherapy),]
+
+# Visualize histological type against days to death
+# Color by radiation therapy
+radiation <- ggplot(data = clinical_radiation) + 
+  geom_boxplot(mapping = aes(x = radiationtherapy, y = yearstodeath, color = histologicaltype)) +
+  scale_color_manual(values = c("#82B446","#FFB90F", "#4682B4", "#EE0000"))  +
+  ggtitle("Years to Death: Radiation Therapy and Histological Type") +
+  ylab("Years to Death") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Radiation Therapy") +
+  labs(color = "Histological \nType") +
+  theme_grey()
+
+
+# Create a plot comparing radiation for each individual histological type
+radiation <-(radiation + facet_wrap( ~ histologicaltype, ncol=4))
+radiation
+
+```
+
+
+---
+
+
+```{r Transform Data}
+
+# Isolate Mesotheloioma RNAseq data
+rna <- meso$dat
+rna <- as.data.frame(rna)
+#head(rna)
+
+# Find the row variance for each gene
+variance <- data.frame(num=1:nrow(rna), var=rowVars(data.matrix(rna)))
+
+# Order the rows in decreasing order 
+variance <- variance[order(variance$var, decreasing = T),]
+
+# Isolate the top 2000 genes then log2 normalize 
+var_2000 <- rna[variance$num[1:2000],] 
+var_2000_log <- log2(var_2000 + 1)
+#as.tibble(var_2000_log)
+
+# Take the row means of the log2 normalized data
+rna_mean <- rowMeans(var_2000_log)
+#as.tibble(rna_mean)
+
+# Create a new dataframe with the genes and means
+# Isolate the 50 upregulated genes and 50 downregulated genes
+change <- data.frame(gene = rownames(var_2000_log), rna_mean = rna_mean)
+change <- change[order(change$rna_mean, decreasing = F),]
+up_genes <- as.character(change$gene[1:50])
+change <- change[order(change$rna_mean, decreasing = T),]
+down_genes <- as.character(change$gene[1:50])
+
+# Creaet new dataframe with only the upregulated and downregulated genes
+diff <- var_2000[c(up_genes, down_genes),]
+
+as.tibble(diff)
+
+
+
+```
+
+
+---
+
+
+---
+
+
+```{r Heatmap Annotation}
+
+# Create dataframe with only histological type 
+tumor_type <- data.frame(type = clinical$histologicaltype)
+#as.tibble(tumor_type)
+
+# Use tumor type to create a heatmap annotation
+# Manually select color scheme
+tumor <- HeatmapAnnotation(df = tumor_type, 
+                           annotation_legend_param = list(title = "Histological \nType", 
+                                                          position = 'vertical'),
+                           col = list(type = c(biphasic = "#82B446",
+                                               epithelioid = "#FFA500", 
+                                               sarcomatoid = "#4682B4",
+                                               malignant = "#EE0000")))
+
+
+```
+
+
+
+---
+
+
+```{r Transpose}
+
+# Transpose dataframe 
+diff_scale <- t(scale(t(diff)))
+as.tibble(diff_scale)
+
+```
+
+
+---
+
+
+```{r Heatmap 1}
+
+# Create heatmap
+# Cluster by rows and columns
+# Select optimal clustering method
+# Manually define color ramp
+Heatmap(diff_scale,
+        top_annotation = tumor,
+        show_column_names = F, 
+        show_row_names = F,
+        cluster_rows = T, 
+        cluster_columns = T,
+        clustering_method_columns = 'complete',
+        clustering_method_rows = "average",
+        row_names_gp = gpar(fontsize = 4),
+        top_annotation_height = unit(1, "cm"),
+        heatmap_legend_param = list(title = "Scaled Expression", position = 'topright'),
+        col = colorRamp2(c(-2, 0, 2), c("dodgerblue4", "white", "red2")))
+
+#Note the regions of low expression - remove these for final plot
+
+```
+
+
+---
+
+```{r Heatmap 2}
+
+diff_scale2 <- t(diff_scale)
+
+# Create heatmap
+# Cluster by rows and columns
+# Select optimal clustering method
+# Manually define color ramp
+# Try grouping by pathological type
+Heatmap(diff_scale2,
+        show_column_names = F, 
+        show_row_names = F,
+        cluster_rows = T, 
+        cluster_columns = T,
+        clustering_method_columns = 'complete',
+        clustering_method_rows = "average",
+        row_names_gp = gpar(fontsize = 4),
+        top_annotation_height = unit(1, "cm"),
+        heatmap_legend_param = list(title = "Scaled Expression"),
+        col = colorRamp2(c(-2, 0, 2), c("dodgerblue4", "white", "red2")),
+        split = clinical$histologicaltype)
+
+# Grouping by pathological type is not successful
+
+```
+
+
+
+---
+
+
+```{r Remove low expression genes}
+
+# Remove all genes with expression levels below 50 before scaling 
+diff_1 <- diff[which(apply(diff[,1:87], 1, function(x) min(x) > 50.0)),]
+as.tibble(diff_1)
+
+```
+
+
+---
+
+
+```{r Heatmap, low expression removed}
+
+diff_1_scale <- t(scale(t(diff_1)))
+
+# Create heatmap
+# Cluster by rows and columns
+# Select optimal clustering method
+# Manually define color ramp
+H_final <- Heatmap(diff_1_scale,
+                   top_annotation = tumor,
+                   show_column_names = F, 
+                   show_row_names = T,
+                   cluster_rows = T,
+                   cluster_columns = T,
+                   clustering_method_columns = 'complete',
+                   clustering_method_rows = "average",
+                   row_names_gp = gpar(fontsize = 4),
+                   top_annotation_height = unit(1, "cm"),
+                   heatmap_legend_param = list(title = "Scaled \nExpression"),
+                   col = colorRamp2(c(-2, 0, 2), c("dodgerblue4", "white", "red2")))
+
+# This is the final Heatmap
+H_final
+
+
+```
+
+
+---
+
+```{r Stage Legend}
+
+require(cowplot)
+
+# Isolate the legend from the stage plot
+legend <- get_legend(stage)
+theme_set(theme_gray())
+
+#plot(legend) 
+
+```
+
+
+---
+
+```{r Facet 2 Plots}
+
+# Combine the stage and age plots horizontally
+combine_1 <- grid.arrange(stage + theme(legend.position = 'none',
+                                      title = element_text(size = 7), 
+                                      axis.title = element_text(size =8),
+                                      axis.text = element_text(size = 7)),
+                        age + theme(legend.position = 'none',
+                                    title = element_text(size = 7),
+                                    axis.title = element_text(size =8),
+                                    axis.text = element_text(size = 7)), 
+                        ncol = 2)
+
+# Combine the radiation plot and stage legend horizontally
+# Make sure the legend is taking up less space (3 to 1)
+combine_2 <- grid.arrange(radiation + theme(legend.position = 'none',
+                                        title = element_text(size = 9),
+                                        axis.title = element_text(size =9),
+                                        axis.text = element_text(size = 7)), 
+             legend, ncol = 2, widths = c(3,1))
+
+
+```
+
+```{r Final 3 Facet Plot}
+
+# Combine the two 'combine' plots to create the final figure
+final_plot <- grid.arrange(combine_1, combine_2, nrow = 2)
+
+final_plot
+
+pdf("test.pdf")
+plot(final_plot)
+dev.off()
+
+```
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
